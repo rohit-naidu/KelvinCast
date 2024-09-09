@@ -1,151 +1,90 @@
 import streamlit as st
-import pandas as pd
-import math
-from pathlib import Path
+import requests
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+# Function to convert Fahrenheit to Kelvin
+def fahrenheit_to_kelvin(temp_f):
+    return (temp_f - 32) * 5/9 + 273.15
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# Function to convert mph to m/s
+def mph_to_mps(speed_mph):
+    return speed_mph * 0.44704
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# Function to get latitude and longitude from ZIP code using OpenCage API
+def get_lat_lon_from_zip(zip_code):
+    api_key = "5825e22ca6214c94a3c61e26b9b999f7"  # Your actual OpenCage API key
+    url = f"https://api.opencagedata.com/geocode/v1/json?q={zip_code}&countrycode=us&key={api_key}"
+    
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data['results']:
+            lat = data['results'][0]['geometry']['lat']
+            lon = data['results'][0]['geometry']['lng']
+            return lat, lon
+    return None, None
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+# Function to get weather data from NWS API using latitude and longitude
+def get_weather_data(lat, lon):
+    url = f"https://api.weather.gov/points/{lat},{lon}"
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        grid_url = response.json()['properties']['forecast']
+        forecast_response = requests.get(grid_url)
+        if forecast_response.status_code == 200:
+            return forecast_response.json()
+    return None
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+# Streamlit app with sidebar navigation
+st.title("Climate Change Class Weather Page")
+st.sidebar.title("Navigation")
+page = st.sidebar.selectbox("Go to", ["Latitude/Longitude", "Current Temperature", "Wind Speed", "5-Day Forecast"])  # Define 'page' here
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+zip_code = st.text_input("Enter a ZIP Code:", "94720")  # Default to UC Berkeley ZIP code
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+if zip_code:
+    lat, lon = get_lat_lon_from_zip(zip_code)
+    
+    if lat and lon:
+        weather_data = get_weather_data(lat, lon)
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
-
-    return gdp_df
-
-gdp_df = get_gdp_data()
-
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+        # Show latitude and longitude
+        if page == "Latitude/Longitude":
+            st.write(f"### Latitude and Longitude")
+            st.write(f"Latitude: {lat}, Longitude: {lon}")
+        
+        # Show current temperature
+        elif page == "Current Temperature":
+            if weather_data:
+                current_weather = weather_data['properties']['periods'][0]
+                high_temp = current_weather['temperature']
+                high_temp_kelvin = fahrenheit_to_kelvin(high_temp)
+                st.write(f"### Current Temperature")
+                st.write(f"Current Temperature: {high_temp_kelvin:.2f} K")
+            else:
+                st.write("Could not fetch weather data. Please try again later.")
+        
+        # Show wind speed
+        elif page == "Wind Speed":
+            if weather_data:
+                current_weather = weather_data['properties']['periods'][0]
+                wind_speed = current_weather['windSpeed']
+                wind_speed_mps = mph_to_mps(float(wind_speed.split()[0]))
+                st.write(f"### Wind Speed")
+                st.write(f"Wind Speed: {wind_speed_mps:.2f} m/s")
+            else:
+                st.write("Could not fetch weather data. Please try again later.")
+        
+        # Show 5-day forecast
+        elif page == "5-Day Forecast":
+            if weather_data:
+                st.write("### 5-Day Forecast")
+                for period in weather_data['properties']['periods'][0:5]:
+                    period_name = period['name']
+                    temp_kelvin = fahrenheit_to_kelvin(period['temperature'])
+                    st.write(f"{period_name}: {temp_kelvin:.2f} K, {period['detailedForecast']}")
+            else:
+                st.write("Could not fetch weather data. Please try again later.")
+    else:
+        st.write("Could not fetch latitude and longitude for the given ZIP code.")
