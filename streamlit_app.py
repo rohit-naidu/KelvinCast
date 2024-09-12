@@ -38,7 +38,6 @@ WEATHER_ICON_MAP = {
     "Chance Drizzle": "https://www.awxcdn.com/adc-assets/images/weathericons/18.svg"
 }
 
-
 # Function to convert Fahrenheit to Kelvin (without adding a new variable)
 def convert_to_kelvin(temp_f):
     return (temp_f - 32) * 5.0 / 9.0 + 273.15
@@ -117,16 +116,18 @@ def get_7_day_forecast_by_lat_lng(lat, lng):
             return periods
     return None
 
-# Function to get the appropriate weather icon based on forecast description
 def get_weather_icon(forecast):
     for condition, icon_url in WEATHER_ICON_MAP.items():
         if condition.lower() in forecast.lower():
             return f'<img src="{icon_url}" width="50">'
     return '<img src="https://example.com/icons/default.png" width="50">'
 
+
 # Function to display weather forecast in a styled format
+# Updated function to display weather forecast with icons
 def display_7_day_forecast(forecast_data):
     st.markdown("### 7-Day Weather Forecast")
+
     for i in range(0, len(forecast_data), 2):  # Every 2 periods represent day and night
         day_data = forecast_data[i]
         night_data = forecast_data[i + 1]
@@ -141,25 +142,29 @@ def display_7_day_forecast(forecast_data):
         short_forecast = day_data['shortForecast']
         night_forecast = night_data['shortForecast']
 
-        weather_icon = get_weather_icon(short_forecast)
+        # Get the weather icon based on the forecast
+        day_icon = get_weather_icon(short_forecast)
+        night_icon = get_weather_icon(night_forecast)
 
         st.markdown(f"""
         <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #ddd; padding: 10px 0;">
             <div style="flex: 1;"><br>{formatted_date}</div>
-            <div style="flex: 1; text-align: center;">{weather_icon}</div>
             <div style="flex: 2; text-align: center;">{temp_high:.2f} K / {temp_low:.2f} K</div>
-            <div style="flex: 4;"><strong>{short_forecast}</strong><br>Night: {night_forecast}</div>
+            <div style="flex: 4;"><strong>{short_forecast}</strong>   {day_icon}<br>Night: {night_forecast}    {night_icon}</div>
         </div>
         """, unsafe_allow_html=True)
 
 # Main page function (Home)
 def main_page():
-    st.image(Image.open("/Users/rohitnaidu/PycharmProjects/weather/rsz_2.png"))
+    st.image(Image.open("YOUR PATH")) #CHANGE TO YOUR IMAGE PATH
 
     # Input for the location with a default example "Berkeley, CA"
     location_input = st.text_input("Enter a location (City, State or Zip Code):", "Berkeley, CA")
 
     if location_input:
+        # Initialize variables to avoid UnboundLocalError
+        temperature, wind_speed, wind_direction, humidity, precipitation_chance = None, None, None, None, None
+
         # Create columns to display the information
         col1, col2, col3 = st.columns(3)
 
@@ -174,7 +179,7 @@ def main_page():
                 else:
                     st.error(f"No data found for Zip Code {location_input}")
             else:
-                # Treat as City, State
+                # Handle city, state input and catch any errors
                 try:
                     city, state = location_input.split(',')
                     lat_lng = get_lat_lng_by_city(city, state)
@@ -185,7 +190,7 @@ def main_page():
                     else:
                         st.error(f"No data found for {city.strip()}, {state.strip()}")
                 except ValueError:
-                    st.error("Please enter the location in 'City, State' format or as a valid Zip Code.")
+                    st.error("Please enter the location in the 'City, State' format or as a valid Zip Code.")
 
         with col2:
             # Get the current weather data
@@ -202,16 +207,17 @@ def main_page():
         with col3:
             # Display wind direction, humidity, and precipitation in the third column
             if temperature is not None:
-                st.write(f"**Wind Direction**: {WIND_ARROW_MAP[wind_direction]}{wind_direction}")
+                st.write(f"**Wind Direction**: {WIND_ARROW_MAP.get(wind_direction, 'N/A')} {wind_direction}")
                 st.write(f"**Relative Humidity**: {humidity['value']}%")
                 st.write(f"**Chance of Precipitation**: {precipitation_chance['value']}%")
 
         # Display the 7-day forecast
-        forecast_data = get_7_day_forecast_by_lat_lng(lat, lng)
-        if forecast_data:
-            display_7_day_forecast(forecast_data)
-        else:
-            st.error("Could not fetch 7-day forecast.")
+        if temperature is not None:
+            forecast_data = get_7_day_forecast_by_lat_lng(lat, lng)
+            if forecast_data:
+                display_7_day_forecast(forecast_data)
+            else:
+                st.error("Could not fetch 7-day forecast.")
 
 
 # Kelvin Page (About Kelvin)
@@ -245,6 +251,7 @@ def kelvin_page():
     In 1999, the orbiter was lost because of a mix-up between metric and imperial units, leading to incorrect calculations for the spacecraft's trajectory.
     While the failure wasn't directly due to Kelvin, it emphasizes the importance of standardized units, including Kelvin, in scientific and engineering endeavors.
     """)
+
 
 # Sidebar navigation
 st.sidebar.title("Navigation")
