@@ -156,7 +156,7 @@ def display_7_day_forecast(forecast_data):
 
 # Main page function (Home)
 def main_page():
-    st.image(Image.open("/Users/Anay/Weather App/rsz_2.png"))
+    st.image(Image.open("rsz_2.png"))
 
     # Input for the location with a default example "Berkeley, CA"
     location_input = st.text_input("Enter a location (City, State or Zip Code):", "Berkeley, CA")
