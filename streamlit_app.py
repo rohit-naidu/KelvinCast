@@ -200,7 +200,8 @@ def main_page():
 
                 if temperature is not None:
                     # Display the temperature and wind speed in Kelvin
-                    st.metric(label=current_date, value=f"{temperature:.2f} K", delta=f"Wind: {wind_speed}")
+                    wind_speed_mps = f"{float(wind_speed.split()[0]) * 0.44704} m/s"
+                    st.metric(label=current_date, value=f"{temperature:.2f} K", delta=f"Wind: {wind_speed_mps}")
                 else:
                     st.error("Could not fetch current weather information.")
 
